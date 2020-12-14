@@ -1,0 +1,177 @@
+﻿@page "/"
+@inject NavigationManager navManager
+@using HeyRed.MarkdownSharp
+@using HtmlAgilityPack
+@using System.IO
+
+<h3>Popular Posts</h3>
+
+@if (popularPosts == null)
+{
+    <SpinKitChasingDots />
+}
+else
+{
+    if (popularPosts.Count == 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            Could not get posts for https://write.as/<span class="font-weight-bold">@writeAsAlias</span>
+        </div>
+    }
+    else
+    {
+        string domainName = "https://write.as/" + writeAsAlias;
+        if (!domainName.EndsWith('/'))
+        {
+            domainName += "/";
+        }
+        <div class="postlist">
+            <ul>
+                @foreach (var post in popularPosts)
+                {
+                    string postTitle = GetPostTitle(post);
+                    string postUrl = domainName + post.Slug;
+                    <li><a href="@postUrl" target="_blank">@postTitle</a></li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    string writeAsAlias { get; set; }
+    List<WriteAs.NET.Client.Models.Post> popularPosts = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        //var uri = navManager.ToAbsoluteUri(navManager.Uri);
+        //if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("alias", out var param))
+        //{
+        //    writeAsAlias = param.First();
+        //}
+
+        //writeAsAlias = !string.IsNullOrEmpty(writeAsAlias) ? "dino" : writeAsAlias;
+        writeAsAlias = "dino";
+
+        if (!string.IsNullOrEmpty(writeAsAlias))
+        {
+            try
+            {
+                using (var client = new WriteAs.NET.WriteAsClient("https://write.as/"))
+                {
+                    var allPosts = await client.GetAllPosts(writeAsAlias, WriteAs.NET.Shared.SortOrder.Descending);
+                    if (allPosts != null)
+                    {
+                        popularPosts = allPosts.OrderByDescending(p => p.Views).Take(10).ToList();
+                    }
+                    else
+                    {
+                        popularPosts = new List<WriteAs.NET.Client.Models.Post>();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                popularPosts = new List<WriteAs.NET.Client.Models.Post>();
+            }
+        }
+        else
+        {
+            popularPosts = new List<WriteAs.NET.Client.Models.Post>();
+        }
+    }
+
+    private string GetPostTitle(WriteAs.NET.Client.Models.Post post)
+    {
+        string postTitle = string.Empty;
+        if (string.IsNullOrEmpty(post.Title))
+        {
+            postTitle = "Untitled Post";
+            string postContent = new Markdown().Transform(post.Body);
+            HtmlDocument doc = new HtmlDocument();
+            doc.LoadHtml(postContent);
+
+            using (StringWriter sw = new StringWriter())
+            {
+                ConvertTo(doc.DocumentNode, sw);
+                sw.Flush();
+                string plainText = sw.ToString();
+                if (!string.IsNullOrEmpty(plainText))
+                {
+                    plainText = plainText.Replace("\r", "");
+                    plainText = plainText.Replace("\n", "");
+                    int length = plainText.Length < 50 ? plainText.Length : 50;
+                    postTitle = plainText.Substring(0, length) + "...";
+                }
+            }
+        }
+        else
+        {
+            postTitle = post.Title;
+        }
+
+        postTitle = postTitle.Replace("#", "&#35;"); // this is to avoid triggering write.as' hashtag system
+        return postTitle;
+    }
+
+    private static void ConvertTo(HtmlNode node, TextWriter outText)
+    {
+        string html;
+        switch (node.NodeType)
+        {
+            case HtmlNodeType.Comment:
+                // don't output comments
+                break;
+
+            case HtmlNodeType.Document:
+                ConvertContentTo(node, outText);
+                break;
+
+            case HtmlNodeType.Text:
+                // script and style must not be output
+                string parentName = node.ParentNode.Name;
+                if ((parentName == "script") || (parentName == "style"))
+                    break;
+
+                // get text
+                html = ((HtmlTextNode)node).Text;
+
+                // is it in fact a special closing node output as text?
+                if (HtmlNode.IsOverlappedClosingElement(html))
+                    break;
+
+                // check the text is meaningful and not a bunch of whitespaces
+                if (html.Trim().Length > 0)
+                {
+                    outText.Write(HtmlEntity.DeEntitize(html));
+                }
+                break;
+
+            case HtmlNodeType.Element:
+                switch (node.Name)
+                {
+                    case "p":
+                        // treat paragraphs as crlf
+                        outText.Write("\r\n");
+                        break;
+                    case "br":
+                        outText.Write("\r\n");
+                        break;
+                }
+
+                if (node.HasChildNodes)
+                {
+                    ConvertContentTo(node, outText);
+                }
+                break;
+        }
+    }
+
+    private static void ConvertContentTo(HtmlNode node, TextWriter outText)
+    {
+        foreach (HtmlNode subnode in node.ChildNodes)
+        {
+            ConvertTo(subnode, outText);
+        }
+    }
+}
