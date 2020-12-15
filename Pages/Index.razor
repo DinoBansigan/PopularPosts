@@ -44,25 +44,28 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        //var uri = navManager.ToAbsoluteUri(navManager.Uri);
-        //if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("alias", out var param))
-        //{
-        //    writeAsAlias = param.First();
-        //}
-
-        //writeAsAlias = !string.IsNullOrEmpty(writeAsAlias) ? "dino" : writeAsAlias;
-        writeAsAlias = "dino";
-
-        if (!string.IsNullOrEmpty(writeAsAlias))
+        try
         {
-            try
+            var uri = navManager.ToAbsoluteUri(navManager.Uri);
+            if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("alias", out var aliasParam))
             {
+                writeAsAlias = aliasParam.Any() ? aliasParam.First() : null;
+            }
+
+            if (!string.IsNullOrEmpty(writeAsAlias))
+            {
+                int maxNumOfItems = 10;
+                if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("max", out var countParam))
+                {
+                    int.TryParse(countParam.First(), out maxNumOfItems);
+                }
+
                 using (var client = new WriteAs.NET.WriteAsClient("https://write.as/"))
                 {
                     var allPosts = await client.GetAllPosts(writeAsAlias, WriteAs.NET.Shared.SortOrder.Descending);
                     if (allPosts != null)
                     {
-                        popularPosts = allPosts.OrderByDescending(p => p.Views).Take(10).ToList();
+                        popularPosts = allPosts.OrderByDescending(p => p.Views).Take(maxNumOfItems).ToList();
                     }
                     else
                     {
@@ -70,12 +73,12 @@ else
                     }
                 }
             }
-            catch (Exception)
+            else
             {
                 popularPosts = new List<WriteAs.NET.Client.Models.Post>();
             }
         }
-        else
+        catch (Exception)
         {
             popularPosts = new List<WriteAs.NET.Client.Models.Post>();
         }
