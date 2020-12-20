@@ -16,4 +16,4 @@ If I wanted to get just the top 5 posts, I can do this:
 `https://popularposts.dinobansigan.com/?alias=dino&max=5`
 
 To use this app on your Write.as blog/site, you can either use the existing app at `https://popularposts.dinobansigan.com/`, pass in your parameter values and 
-embed it in a post via iFrame. Or you can clone this repo, build out the solution and upload the app onto your webserver of choice, and use the app from there.
+embed it in a post via iFrame. Or you can clone this repo, build out the solution and upload the static site app onto your webserver of choice, and use the app from there.
